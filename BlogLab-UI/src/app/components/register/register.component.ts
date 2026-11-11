@@ -1,85 +1,65 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, ValidatorFn, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
-import { ApplicationUserCreate } from 'src/app/models/account/application-user-create.model';
-import { AccountService } from 'src/app/services/account.service';
+import { Component, inject, signal } from '@angular/core';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { AccountService } from '../../services/account.service';
+
+type Field = 'fullname' | 'username' | 'email' | 'password' | 'confirmPassword';
+
+const passwordsMatch = (group: AbstractControl): ValidationErrors | null =>
+  group.get('password')?.value === group.get('confirmPassword')?.value ? null : { isMatching: true };
 
 @Component({
   selector: 'app-register',
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './register.component.html',
-  styleUrls: ['./register.component.css']
+  styleUrl: './register.component.css'
 })
-export class RegisterComponent implements OnInit {
+export class RegisterComponent {
+  private readonly accountService = inject(AccountService);
+  private readonly router = inject(Router);
 
-  registerForm: FormGroup;
+  readonly saving = signal(false);
 
-  constructor(
-    private accountService: AccountService,
-    private router: Router,
-    private formBuilder: FormBuilder
-  ) { }
+  readonly registerForm = inject(FormBuilder).nonNullable.group(
+    {
+      fullname: ['', [Validators.minLength(10), Validators.maxLength(30)]],
+      username: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(20)]],
+      email: ['', [Validators.required, Validators.email, Validators.maxLength(30)]],
+      password: ['', [Validators.required, Validators.minLength(10), Validators.maxLength(50)]],
+      confirmPassword: ['', [Validators.required]]
+    },
+    { validators: passwordsMatch }
+  );
 
-  ngOnInit(): void {
-    this.registerForm = this.formBuilder.group({
-      fullname: [null, [
-        Validators.minLength(10),
-        Validators.maxLength(30)
-      ]],
-      username: [null, [
-        Validators.required,
-        Validators.minLength(5),
-        Validators.maxLength(20)
-      ]],
-      email: [null, [
-        Validators.required,
-        Validators.pattern(/^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$/i),
-        Validators.maxLength(30)
-      ]],
-      password: [null, [
-        Validators.required,
-        Validators.minLength(10),
-        Validators.maxLength(50)
-      ]],
-      confirmPassword: [null, [
-        Validators.required
-      ]],
-    }, {
-      validators: this.matchValue
-    });
+  formHasError(error: string): boolean {
+    return this.registerForm.hasError(error);
   }
 
-  formHasError(error: string) {
-    return !!this.registerForm.hasError(error);
+  invalid(field: Field): boolean {
+    const control = this.registerForm.controls[field];
+    const mismatch = field === 'confirmPassword' && this.formHasError('isMatching');
+    return control.touched && (control.invalid || mismatch);
   }
 
-  isTouched(field: string) {
-    return this.registerForm.get(field).touched;
+  valid(field: Field): boolean {
+    return this.registerForm.controls[field].touched && !this.invalid(field);
   }
 
-  hasErrors(field: string) {
-    return this.registerForm.get(field).errors;
+  hasError(field: Field, error: string): boolean {
+    return this.registerForm.controls[field].hasError(error);
   }
 
-  hasError(field: string, error: string) {
-    return !!this.registerForm.get(field).hasError(error);
-  }
+  onSubmit(): void {
+    if (this.registerForm.invalid) return;
 
-  matchValue: ValidatorFn = (fg: FormGroup) => {
-    const password = fg.get('password').value;
-    const confirmPassword = fg.get('confirmPassword').value;
-    return password === confirmPassword ? null : { isMatching: true };
-  }
+    const { username, password, email, fullname } = this.registerForm.getRawValue();
 
-  onSubmit() {
-    let applicationUserCreate: ApplicationUserCreate = new ApplicationUserCreate(
-      this.registerForm.get("username").value,
-      this.registerForm.get("password").value,
-      this.registerForm.get("email").value,
-      this.registerForm.get("fullname").value,
-    );
-
-    this.accountService.register(applicationUserCreate).subscribe(() => {
-      this.router.navigate(['/dashboard']);
-    })
+    this.saving.set(true);
+    this.accountService
+      .register({ username, password, email, fullname: fullname || null })
+      .subscribe({
+        next: () => this.router.navigate(['/dashboard']),
+        error: () => this.saving.set(false)
+      });
   }
 }

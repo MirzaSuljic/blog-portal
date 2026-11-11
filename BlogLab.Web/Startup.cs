@@ -1,41 +1,44 @@
-using System;
-using System.Collections.Generic;
-using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using BlogLab.Identity;
 using BlogLab.Models.Account;
 using BlogLab.Models.Settings;
 using BlogLab.Repository;
+using BlogLab.Repository.Database;
 using BlogLab.Services;
 using BlogLab.Web.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 
 namespace BlogLab.Web
 {
     public class Startup
     {
+        private const string CorsPolicy = "BlogLabUi";
+
         public IConfiguration Configuration { get; }
 
         public Startup(IConfiguration config)
         {
-            JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
             Configuration = config;
         }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
-        // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            var jwtKey = Configuration["Jwt:Key"];
+            if (string.IsNullOrWhiteSpace(jwtKey))
+            {
+                throw new InvalidOperationException(
+                    "Jwt:Key is missing. Put it in BlogLab.Web/appsettings.Local.json or set the Jwt__Key environment variable.");
+            }
+
+            // PostgreSQL (Neon). Accepts the postgresql:// URL Neon shows as well.
+            Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+            var connectionString = DatabaseInitializer.ToNpgsqlConnectionString(
+                Configuration.GetConnectionString("DefaultConnection"));
+            services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+
             services.Configure<CloudinaryOptions>(Configuration.GetSection("CloudinaryOptions"));
 
             services.AddScoped<ITokenService, TokenService>();
@@ -55,7 +58,17 @@ namespace BlogLab.Web
                 .AddSignInManager<SignInManager<ApplicationUserIdentity>>();
 
             services.AddControllers();
-            services.AddCors();
+
+            var allowedOrigins = Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                                 ?? new[] { "http://localhost:4200" };
+
+            services.AddCors(options =>
+            {
+                options.AddPolicy(CorsPolicy, policy => policy
+                    .WithOrigins(allowedOrigins)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod());
+            });
 
             services.AddAuthentication(options =>
             {
@@ -63,49 +76,34 @@ namespace BlogLab.Web
                 options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             })
-                .AddJwtBearer
-                (
-                    options =>
+                .AddJwtBearer(options =>
+                {
+                    options.RequireHttpsMetadata = false;
+                    options.SaveToken = true;
+                    // Keep the short JWT claim names ("nameid", "unique_name") that the controllers read.
+                    options.MapInboundClaims = false;
+                    options.TokenValidationParameters = new TokenValidationParameters
                     {
-                        options.RequireHttpsMetadata = false;
-                        options.SaveToken = true;
-                        options.TokenValidationParameters = new TokenValidationParameters
-                        {
-                            ValidateIssuer = true,
-                            ValidateAudience = true,
-                            ValidateLifetime = true,
-                            ValidateIssuerSigningKey = true,
-                            ValidIssuer = Configuration["Jwt:Issuer"],
-                            ValidAudience = Configuration["Jwt:Issuer"],
-                            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:Key"])),
-                            ClockSkew = TimeSpan.Zero
-                        };
-                    }
-                );
-
-
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = Configuration["Jwt:Issuer"],
+                        ValidAudience = Configuration["Jwt:Issuer"],
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+                        ClockSkew = TimeSpan.Zero
+                    };
+                });
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-            }
-
-            app.ConfigureExceptionHandler();
+            // JSON errors in every environment; in Development they carry the real reason.
+            app.ConfigureExceptionHandler(includeDetails: env.IsDevelopment());
 
             app.UseRouting();
 
-            if (env.IsDevelopment())
-            {
-                app.UseCors(options => options.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin());
-            }
-            else
-            {
-                app.UseCors();
-            }
+            app.UseCors(CorsPolicy);
 
             app.UseAuthentication();
             app.UseAuthorization();

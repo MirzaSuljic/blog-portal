@@ -34,13 +34,15 @@ namespace BlogLab.Web.Controllers
             {
                 var photo = await _photoRepository.GetAsync(blogCreate.PhotoId.Value);
 
-                if (photo.ApplicationUserId != applicationUserId)
+                if (photo == null || photo.ApplicationUserId != applicationUserId)
                 {
                     return BadRequest("You did not upload the photo.");
                 }
             }
 
             var blog = await _blogRepository.UpsertAsync(blogCreate, applicationUserId);
+
+            if (blog == null) return BadRequest("Blog does not exist or was not created by the current user.");
 
             return Ok(blog);
         }

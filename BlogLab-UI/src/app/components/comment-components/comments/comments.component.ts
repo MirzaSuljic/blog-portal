@@ -1,86 +1,84 @@
-import { Component, Input, OnInit } from '@angular/core';
-import { ToastrService } from 'ngx-toastr';
-import { BlogCommentViewModel } from 'src/app/models/blog-comment/blog-comment-view-model.model';
-import { BlogComment } from 'src/app/models/blog-comment/blog-comment.model';
-import { AccountService } from 'src/app/services/account.service';
-import { BlogCommentService } from 'src/app/services/blog-comment.service';
+import { DatePipe } from '@angular/common';
+import { Component, inject, input } from '@angular/core';
+import { BlogCommentViewModel } from '../../../models/blog-comment/blog-comment-view-model.model';
+import { BlogComment } from '../../../models/blog-comment/blog-comment.model';
+import { InitialsPipe } from '../../../pipes/initials.pipe';
+import { AccountService } from '../../../services/account.service';
+import { BlogCommentService } from '../../../services/blog-comment.service';
+import { IconComponent } from '../../../shared/icon.component';
+import { ToastService } from '../../../shared/toast.service';
+import { CommentBoxComponent } from '../comment-box/comment-box.component';
 
 @Component({
   selector: 'app-comments',
+  imports: [DatePipe, InitialsPipe, IconComponent, CommentBoxComponent],
   templateUrl: './comments.component.html',
-  styleUrls: ['./comments.component.css']
+  styleUrl: './comments.component.css'
 })
-export class CommentsComponent implements OnInit {
+export class CommentsComponent {
+  protected readonly accountService = inject(AccountService);
+  private readonly blogCommentService = inject(BlogCommentService);
+  private readonly toast = inject(ToastService);
 
-  @Input() comments: BlogCommentViewModel[];
+  readonly comments = input.required<BlogCommentViewModel[]>();
 
-  constructor(
-    public accountService: AccountService,
-    private toastr: ToastrService,
-    private blogCommentService: BlogCommentService
-  ) { }
-
-  ngOnInit(): void {
+  isOwn(comment: BlogCommentViewModel): boolean {
+    return this.accountService.givenUserIsLoggedIn(comment.username);
   }
 
-  editComment(comment: BlogCommentViewModel) {
-    comment.isEditable = true;
-  }
-
-  showDeleteConfirm(comment: BlogCommentViewModel) {
-    comment.deleteConfirm = true;
-  }
-
-  cancelDeleteConfirm(comment: BlogCommentViewModel) {
-    comment.deleteConfirm = false;
-  }
-
-  deleteConfirm(comment: BlogCommentViewModel, comments: BlogCommentViewModel[]) {
+  deleteConfirmed(comment: BlogCommentViewModel): void {
     this.blogCommentService.delete(comment.blogCommentId).subscribe(() => {
-
-      let index = 0;
-
-      for(let i=0; i<comments.length; i++) {
-        if (comments[i].blogCommentId === comment.blogCommentId) {
-          index = i;
-        }
-      }
-
-      if (index > -1) {
-        comments.splice(index, 1);
-      }
-
-      this.toastr.info("Blog comment deleted.");
+      this.remove(comment);
+      this.toast.info('Comment deleted.');
     });
   }
 
-  replyComment(comment: BlogCommentViewModel) {
-    let replyComment: BlogCommentViewModel = {
+  replyComment(comment: BlogCommentViewModel): void {
+    const user = this.accountService.currentUserValue;
+    if (!user) return;
+
+    comment.comments.push({
       parentBlogCommentId: comment.blogCommentId,
       content: '',
       blogId: comment.blogId,
       blogCommentId: -1,
-      username: this.accountService.currentUserValue.username,
-      publishDate: new Date(),
-      updateDate: new Date(),
+      username: user.username,
+      publishDate: null,
+      updateDate: null,
       isEditable: false,
       deleteConfirm: false,
       isReplying: true,
       comments: []
-    };
-
-    comment.comments.push(replyComment);
+    });
   }
 
-  onCommentSaved(blogComment: BlogComment, comment: BlogCommentViewModel) {
-    comment.blogCommentId = blogComment.blogCommentId;
-    comment.parentBlogCommentId = blogComment.parentBlogCommentId;
-    comment.blogId = blogComment.blogId;
-    comment.content = blogComment.content;
-    comment.publishDate = blogComment.publishDate;
-    comment.updateDate = blogComment.updateDate;
-    comment.username = blogComment.username;
+  cancelEdit(comment: BlogCommentViewModel): void {
+    if (comment.blogCommentId === -1) {
+      // an unsaved reply: just drop it
+      this.remove(comment);
+    } else {
+      comment.isEditable = false;
+      comment.isReplying = false;
+    }
+  }
+
+  onCommentSaved(saved: BlogComment, comment: BlogCommentViewModel): void {
+    comment.blogCommentId = saved.blogCommentId;
+    comment.parentBlogCommentId = saved.parentBlogCommentId ?? null;
+    comment.blogId = saved.blogId;
+    comment.content = saved.content;
+    comment.publishDate = saved.publishDate;
+    comment.updateDate = saved.updateDate;
+    comment.username = saved.username;
     comment.isEditable = false;
     comment.isReplying = false;
+  }
+
+  private remove(comment: BlogCommentViewModel): void {
+    const list = this.comments();
+    const index = list.indexOf(comment);
+    if (index > -1) {
+      list.splice(index, 1);
+    }
   }
 }

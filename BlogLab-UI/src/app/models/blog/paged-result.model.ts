@@ -1,6 +1,4 @@
-export class PagedResult<T> {
-    constructor(
-        public items: Array<T>,
-        public totalCount: number
-    ) {}
+export interface PagedResult<T> {
+  items: T[];
+  totalCount: number;
 }

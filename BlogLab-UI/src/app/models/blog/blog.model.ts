@@ -1,15 +1,12 @@
-export class Blog {
-
-    constructor(
-        public blogId: number,
-        public title: string,
-        public content: string,
-        public applicationUserId: number,
-        public username: string,
-        public publishDate: Date,
-        public updateDate: Date,
-        public deleteConfirm: boolean = false,
-        public photoId?: number
-    ) {}
-
+export interface Blog {
+  blogId: number;
+  title: string;
+  content: string;
+  applicationUserId: number;
+  username: string;
+  publishDate: string;
+  updateDate: string;
+  photoId?: number | null;
+  /** UI only: the "Sure?" step before deleting */
+  deleteConfirm?: boolean;
 }

@@ -1,18 +1,16 @@
-﻿using BlogLab.Models.Exception;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Threading.Tasks;
+using BlogLab.Models.Exception;
+using Microsoft.AspNetCore.Diagnostics;
 
 namespace BlogLab.Web.Extensions
 {
     public static class ExceptionMiddlewareExtensions
     {
-        public static void ConfigureExceptionHandler(this IApplicationBuilder app)
+        /// <summary>
+        /// Returns every unhandled exception as JSON { statusCode, message }.
+        /// With includeDetails (Development) the real reason is sent, e.g. "Cannot open database BlogDB".
+        /// </summary>
+        public static void ConfigureExceptionHandler(this IApplicationBuilder app, bool includeDetails)
         {
             app.UseExceptionHandler(appError =>
             {
@@ -20,17 +18,20 @@ namespace BlogLab.Web.Extensions
                 {
                     context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                     context.Response.ContentType = "application/json";
-                    var contextFeature = context.Features.Get<IExceptionHandlerFeature>();
-                    if (contextFeature !=  null)
-                    {
-                        // In production version you would log exceptions into your database
 
-                        await context.Response.WriteAsync(new ApiException()
-                        {
-                            StatusCode = context.Response.StatusCode,
-                            Message = "Internal Server Error"
-                        }.ToString());
-                    }
+                    var feature = context.Features.Get<IExceptionHandlerFeature>();
+                    if (feature == null) return;
+
+                    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("BlogLab");
+                    logger.LogError(feature.Error, "Unhandled exception on {Path}", context.Request.Path);
+
+                    var root = feature.Error.GetBaseException();
+
+                    await context.Response.WriteAsync(new ApiException
+                    {
+                        StatusCode = context.Response.StatusCode,
+                        Message = includeDetails ? $"{root.GetType().Name}: {root.Message}" : "Internal Server Error"
+                    }.ToString());
                 });
             });
         }

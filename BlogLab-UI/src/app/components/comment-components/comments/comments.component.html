@@ -1,55 +1,64 @@
-<div class="container">
+<ul class="space-y-6">
+  @for (comment of comments(); track comment) {
+    <li>
+      <div class="flex gap-4">
+        <span class="avatar size-10 text-xs">{{ comment.username | initials }}</span>
 
-    <div *ngFor="let comment of comments">
-
-        <div class="row mb-3 d-block comment-box">
-
-            <div class="card p-3">
-
-                <p class="font-italic">{{comment.username}} said on {{comment.updateDate | date:'medium'}}</p>
-
-                <blockquote *ngIf="!comment.isEditable && !comment.isReplying" class="blockquote">
-                    {{comment.content}}
-                </blockquote>
-
-                <app-comment-box
-                    *ngIf="(!!comment.isEditable && accountService.givenUserIsLoggedIn(comment.username)) || !!comment.isReplying"
-                    [comment]="comment"
-                    (commentSaved)="onCommentSaved($event, comment)"
-                    >    
-                </app-comment-box>
-
-                <div class="button-box" *ngIf="!comment.isEditable && !comment.isReplying">
-
-                    <button 
-                        *ngIf="!comment.isEditable && !!accountService.givenUserIsLoggedIn(comment.username)" 
-                        class="btn btn-sm btn-info mr-1"
-                        (click)="editComment(comment)">Edit</button>
-                    
-                    <button 
-                        *ngIf="!comment.isReplying && !!accountService.isLoggedIn()" 
-                        class="btn btn-sm btn-primary mr-1"
-                        (click)="replyComment(comment)">Reply</button>
-
-                    <button 
-                        *ngIf="!comment.deleteConfirm && !!accountService.givenUserIsLoggedIn(comment.username)" 
-                        class="btn btn-sm btn-danger"
-                        (click)="showDeleteConfirm(comment)">Delete</button>
-
-                    <div *ngIf="!!comment.deleteConfirm">
-                        Sure?
-                        <button class="btn btn-link p-1" (click)="deleteConfirm(comment, comments)">Yes</button>
-                        <button class="btn btn-link p-1" (click)="cancelDeleteConfirm(comment)">No</button>
-                    </div>
-
-                </div>
-
+        <div class="min-w-0 flex-1">
+          <div class="rounded-2xl rounded-tl-sm bg-white p-4 ring-1 ring-line">
+            <div class="flex flex-wrap items-baseline gap-x-2">
+              <span class="text-sm font-semibold">{{ comment.username }}</span>
+              @if (comment.updateDate) {
+                <span class="text-xs text-muted">{{ comment.updateDate | date: 'MMM d, y · HH:mm' }}</span>
+              } @else {
+                <span class="text-xs text-muted">replying…</span>
+              }
             </div>
 
+            @if ((comment.isEditable && isOwn(comment)) || comment.isReplying) {
+              <div class="mt-3">
+                <app-comment-box
+                  [comment]="comment"
+                  [cancellable]="true"
+                  (commentSaved)="onCommentSaved($event, comment)"
+                  (cancelled)="cancelEdit(comment)" />
+              </div>
+            } @else {
+              <p class="mt-1.5 leading-7 whitespace-pre-line text-stone-800">{{ comment.content }}</p>
+            }
+          </div>
+
+          @if (!comment.isEditable && !comment.isReplying) {
+            <div class="mt-1.5 flex flex-wrap items-center gap-1 pl-1">
+              @if (accountService.loggedIn()) {
+                <button type="button" class="btn btn-ghost btn-sm" (click)="replyComment(comment)">
+                  <app-icon name="reply" [size]="14" /> Reply
+                </button>
+              }
+              @if (isOwn(comment)) {
+                <button type="button" class="btn btn-ghost btn-sm" (click)="comment.isEditable = true">
+                  <app-icon name="pen" [size]="14" /> Edit
+                </button>
+                @if (comment.deleteConfirm) {
+                  <span class="ml-1 text-xs font-medium">Delete?</span>
+                  <button type="button" class="btn btn-danger btn-sm" (click)="deleteConfirmed(comment)">Yes</button>
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="comment.deleteConfirm = false">No</button>
+                } @else {
+                  <button type="button" class="btn btn-danger-ghost btn-sm" (click)="comment.deleteConfirm = true">
+                    <app-icon name="trash" [size]="14" /> Delete
+                  </button>
+                }
+              }
+            </div>
+          }
+
+          @if (comment.comments.length > 0) {
+            <div class="mt-5 border-l-2 border-line pl-4 sm:pl-6">
+              <app-comments [comments]="comment.comments" />
+            </div>
+          }
         </div>
-
-        <app-comments [comments]="comment.comments" *ngIf="comment.comments"></app-comments>
-
-    </div>
-
-</div>
+      </div>
+    </li>
+  }
+</ul>

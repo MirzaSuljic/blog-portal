@@ -1,24 +1,21 @@
-import { Component, OnInit } from '@angular/core';
-import { Blog } from 'src/app/models/blog/blog.model';
-import { BlogService } from 'src/app/services/blog.service';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { Blog } from '../../../models/blog/blog.model';
+import { BlogService } from '../../../services/blog.service';
+import { BlogCardComponent } from '../blog-card/blog-card.component';
 
 @Component({
   selector: 'app-famous-blogs',
+  imports: [RouterLink, BlogCardComponent],
   templateUrl: './famous-blogs.component.html',
-  styleUrls: ['./famous-blogs.component.css']
+  styleUrl: './famous-blogs.component.css'
 })
 export class FamousBlogsComponent implements OnInit {
+  private readonly blogService = inject(BlogService);
 
-  famousBlogs: Blog[] = [];
-
-  constructor(
-    private blogService: BlogService
-  ) { }
+  readonly famousBlogs = signal<Blog[]>([]);
 
   ngOnInit(): void {
-    this.blogService.getMostFamous().subscribe(blogs => {
-      this.famousBlogs = blogs;
-    });
+    this.blogService.getMostFamous().subscribe(blogs => this.famousBlogs.set(blogs));
   }
-
 }

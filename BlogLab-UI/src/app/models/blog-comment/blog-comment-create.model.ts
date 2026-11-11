@@ -1,10 +1,6 @@
-export class BlogCommentCreate {
-
-    constructor(
-        public blogCommentId: number,
-        public blogId: number,
-        public content: string,
-        public parentBlogCommentId?: number
-    ) {}
-
+export interface BlogCommentCreate {
+  blogCommentId: number;
+  blogId: number;
+  content: string;
+  parentBlogCommentId?: number | null;
 }

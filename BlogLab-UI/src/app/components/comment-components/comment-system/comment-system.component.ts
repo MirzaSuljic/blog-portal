@@ -1,107 +1,92 @@
-import { Component, Input, OnInit } from '@angular/core';
-import { first } from 'rxjs/operators';
-import { BlogCommentViewModel } from 'src/app/models/blog-comment/blog-comment-view-model.model';
-import { BlogComment } from 'src/app/models/blog-comment/blog-comment.model';
-import { AccountService } from 'src/app/services/account.service';
-import { BlogCommentService } from 'src/app/services/blog-comment.service';
+import { Component, OnInit, inject, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { BlogCommentViewModel } from '../../../models/blog-comment/blog-comment-view-model.model';
+import { BlogComment } from '../../../models/blog-comment/blog-comment.model';
+import { InitialsPipe } from '../../../pipes/initials.pipe';
+import { AccountService } from '../../../services/account.service';
+import { BlogCommentService } from '../../../services/blog-comment.service';
+import { CommentBoxComponent } from '../comment-box/comment-box.component';
+import { CommentsComponent } from '../comments/comments.component';
+
+export function toViewModel(comment: BlogComment, extra: Partial<BlogCommentViewModel> = {}): BlogCommentViewModel {
+  return {
+    parentBlogCommentId: comment.parentBlogCommentId ?? null,
+    blogCommentId: comment.blogCommentId,
+    blogId: comment.blogId,
+    content: comment.content,
+    username: comment.username,
+    publishDate: comment.publishDate,
+    updateDate: comment.updateDate,
+    isEditable: false,
+    deleteConfirm: false,
+    isReplying: false,
+    comments: [],
+    ...extra
+  };
+}
 
 @Component({
   selector: 'app-comment-system',
+  imports: [RouterLink, InitialsPipe, CommentBoxComponent, CommentsComponent],
   templateUrl: './comment-system.component.html',
-  styleUrls: ['./comment-system.component.css']
+  styleUrl: './comment-system.component.css'
 })
 export class CommentSystemComponent implements OnInit {
+  private readonly blogCommentService = inject(BlogCommentService);
+  protected readonly accountService = inject(AccountService);
 
-  @Input() blogId: number;
+  readonly blogId = input.required<number>();
 
-  standAloneComment: BlogCommentViewModel;
-  blogComments: BlogComment[];
-  blogCommentViewModels: BlogCommentViewModel[];
-
-  constructor(
-    private blogCommentService: BlogCommentService,
-    public accountService: AccountService
-  ) { }
+  readonly standAloneComment = signal<BlogCommentViewModel | null>(null);
+  readonly commentTree = signal<BlogCommentViewModel[] | null>(null);
+  readonly total = signal(0);
 
   ngOnInit(): void {
-    this.blogCommentService.getAll(this.blogId).subscribe(blogComments => {
+    this.resetStandAloneComment();
 
-      if (this.accountService.isLoggedIn()) {
-        this.initComment(this.accountService.currentUserValue.username);
-      }
-
-      this.blogComments = blogComments;
-      this.blogCommentViewModels = [];
-
-      for (let i=0; i<this.blogComments.length; i++) {
-        if (!this.blogComments[i].parentBlogCommentId) {
-          this.findCommentReplies(this.blogCommentViewModels, i);
-        }
-      }
-
+    this.blogCommentService.getAll(this.blogId()).subscribe(comments => {
+      this.total.set(comments.length);
+      this.commentTree.set(this.buildTree(comments));
     });
   }
 
-  initComment(username: string) {
-    this.standAloneComment = {
-      parentBlogCommentId: null,
-      content: '',
-      blogId: this.blogId,
-      blogCommentId: -1,
-      username: username,
-      publishDate: null,
-      updateDate: null,
-      isEditable: false,
-      deleteConfirm: false,
-      isReplying: false,
-      comments: []
-    };
+  onCommentSaved(saved: BlogComment): void {
+    this.commentTree.update(tree => [toViewModel(saved), ...(tree ?? [])]);
+    this.total.update(n => n + 1);
+    this.resetStandAloneComment();
   }
 
-  findCommentReplies(blogCommentViewModels: BlogCommentViewModel[], index: number) {
-
-    let firstElement = this.blogComments[index];
-    let newComments: BlogCommentViewModel[] = [];
-
-    let commentViewModel: BlogCommentViewModel = {
-      parentBlogCommentId: firstElement.parentBlogCommentId || null,
-      content: firstElement.content,
-      blogId: firstElement.blogId,
-      blogCommentId: firstElement.blogCommentId,
-      username: firstElement.username,
-      publishDate: firstElement.publishDate,
-      updateDate: firstElement.updateDate,
-      isEditable: false,
-      deleteConfirm: false,
-      isReplying: false,
-      comments: newComments
-    }
-
-    blogCommentViewModels.push(commentViewModel);
-
-    for (let i=0; i<this.blogComments.length; i++) {
-      if (this.blogComments[i].parentBlogCommentId === firstElement.blogCommentId) {
-        this.findCommentReplies(newComments, i);
-      }
-    }
+  private resetStandAloneComment(): void {
+    const user = this.accountService.currentUserValue;
+    this.standAloneComment.set(
+      user
+        ? {
+            parentBlogCommentId: null,
+            content: '',
+            blogId: this.blogId(),
+            blogCommentId: -1,
+            username: user.username,
+            publishDate: null,
+            updateDate: null,
+            isEditable: false,
+            deleteConfirm: false,
+            isReplying: false,
+            comments: []
+          }
+        : null
+    );
   }
 
-  onCommentSaved(blogComment: BlogComment) {
-    let commentViewModel: BlogCommentViewModel = {
-      parentBlogCommentId: blogComment.parentBlogCommentId,
-      content: blogComment.content,
-      blogId: blogComment.blogId,
-      blogCommentId: blogComment.blogCommentId,
-      username: blogComment.username,
-      publishDate: blogComment.publishDate,
-      updateDate: blogComment.updateDate,
-      isEditable: false,
-      deleteConfirm: false,
-      isReplying: false,
-      comments: []
+  /** Nests replies under their parent comment. */
+  private buildTree(comments: BlogComment[]): BlogCommentViewModel[] {
+    const byId = new Map<number, BlogCommentViewModel>();
+    comments.forEach(c => byId.set(c.blogCommentId, toViewModel(c)));
+
+    const roots: BlogCommentViewModel[] = [];
+    for (const vm of byId.values()) {
+      const parent = vm.parentBlogCommentId ? byId.get(vm.parentBlogCommentId) : undefined;
+      (parent ? parent.comments : roots).push(vm);
     }
-
-    this.blogCommentViewModels.unshift(commentViewModel);
+    return roots;
   }
-
 }

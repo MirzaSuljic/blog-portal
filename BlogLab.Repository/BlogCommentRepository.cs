@@ -1,110 +1,96 @@
-﻿using BlogLab.Models.BlogComment;
+using BlogLab.Models.BlogComment;
 using Dapper;
-using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Npgsql;
 
 namespace BlogLab.Repository
 {
     public class BlogCommentRepository : IBlogCommentRepository
     {
-        private readonly IConfiguration _config;
+        private const string CommentColumns =
+            "blog_comment_id, parent_blog_comment_id, blog_id, application_user_id, username, content, publish_date, update_date";
 
-        public BlogCommentRepository(IConfiguration config)
+        private readonly NpgsqlDataSource _dataSource;
+
+        public BlogCommentRepository(NpgsqlDataSource dataSource)
         {
-            _config = config;
+            _dataSource = dataSource;
         }
 
         public async Task<int> DeleteAsync(int blogCommentId)
         {
-            int affectedRows = 0;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
-
-                affectedRows = await connection.ExecuteAsync(
-                    "BlogComment_Delete",
-                    new { BlogCommentId = blogCommentId },
-                    commandType: CommandType.StoredProcedure);
-            }
-
-            return affectedRows;
+            // deletes the comment together with all replies under it
+            return await connection.ExecuteAsync(
+                @"WITH RECURSIVE tree AS (
+                      SELECT blog_comment_id FROM blog_comment WHERE blog_comment_id = @BlogCommentId
+                      UNION ALL
+                      SELECT c.blog_comment_id FROM blog_comment c
+                      JOIN tree t ON c.parent_blog_comment_id = t.blog_comment_id
+                  )
+                  UPDATE blog_comment
+                  SET active_ind = FALSE, update_date = now()
+                  WHERE blog_comment_id IN (SELECT blog_comment_id FROM tree)",
+                new { BlogCommentId = blogCommentId });
         }
 
         public async Task<List<BlogComment>> GetAllAsync(int blogId)
         {
-            IEnumerable<BlogComment> blogComments;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
+            var comments = await connection.QueryAsync<BlogComment>(
+                $@"SELECT {CommentColumns} FROM blog_comment_view
+                   WHERE blog_id = @BlogId AND active_ind
+                   ORDER BY update_date DESC",
+                new { BlogId = blogId });
 
-                blogComments = await connection.QueryAsync<BlogComment>(
-                    "BlogComment_GetAll",
-                    new { BlogId = blogId},
-                    commandType: CommandType.StoredProcedure);
-            }
-
-            return blogComments.ToList();
+            return comments.ToList();
         }
 
         public async Task<BlogComment> GetAsync(int blogCommentId)
         {
-            BlogComment blogComment;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
-
-                blogComment = await connection.QueryFirstOrDefaultAsync<BlogComment>(
-                    "BlogComment_Get",
-                    new { BlogCommentId = blogCommentId },
-                    commandType: CommandType.StoredProcedure);
-            }
-
-            return blogComment;
+            return await connection.QueryFirstOrDefaultAsync<BlogComment>(
+                $"SELECT {CommentColumns} FROM blog_comment_view WHERE blog_comment_id = @BlogCommentId AND active_ind",
+                new { BlogCommentId = blogCommentId });
         }
 
         public async Task<BlogComment> UpsertAsync(BlogCommentCreate blogCommentCreate, int applicationUserId)
         {
-            var dataTable = new DataTable();
-            dataTable.Columns.Add("BlogCommentId", typeof(int));
-            dataTable.Columns.Add("ParentBlogCommentId", typeof(int));
-            dataTable.Columns.Add("BlogId", typeof(int));
-            dataTable.Columns.Add("Content", typeof(string));
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            dataTable.Rows.Add(
-                blogCommentCreate.BlogCommentId,
-                blogCommentCreate.ParentBlogCommentId, 
-                blogCommentCreate.BlogId,
-                blogCommentCreate.Content);
-
-            int? newBlogCommentId;
-
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
+            var parameters = new
             {
-                await connection.OpenAsync();
+                blogCommentCreate.BlogCommentId,
+                blogCommentCreate.ParentBlogCommentId,
+                blogCommentCreate.BlogId,
+                blogCommentCreate.Content,
+                ApplicationUserId = applicationUserId
+            };
 
-                newBlogCommentId = await connection.ExecuteScalarAsync<int?>(
-                    "BlogComment_Upsert",
-                    new { 
-                        BlogComment = dataTable.AsTableValuedParameter("dbo.BlogCommentType"),
-                        ApplicationUserId = applicationUserId
-                    },
-                    commandType: CommandType.StoredProcedure);
+            int? commentId;
+
+            if (blogCommentCreate.BlogCommentId > 0)
+            {
+                // only the author can edit a comment
+                commentId = await connection.ExecuteScalarAsync<int?>(
+                    @"UPDATE blog_comment
+                      SET content = @Content, update_date = now()
+                      WHERE blog_comment_id = @BlogCommentId AND application_user_id = @ApplicationUserId AND active_ind
+                      RETURNING blog_comment_id",
+                    parameters);
+            }
+            else
+            {
+                commentId = await connection.ExecuteScalarAsync<int>(
+                    @"INSERT INTO blog_comment (parent_blog_comment_id, blog_id, application_user_id, content)
+                      VALUES (@ParentBlogCommentId, @BlogId, @ApplicationUserId, @Content)
+                      RETURNING blog_comment_id",
+                    parameters);
             }
 
-            newBlogCommentId = newBlogCommentId ?? blogCommentCreate.BlogCommentId;
-
-            BlogComment blogComment = await GetAsync(newBlogCommentId.Value);
-
-            return blogComment;
+            return commentId.HasValue ? await GetAsync(commentId.Value) : null;
         }
     }
 }

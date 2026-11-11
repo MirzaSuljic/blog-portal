@@ -1,64 +1,52 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
-import { ApplicationUserLogin } from 'src/app/models/account/application-user-login.model';
-import { AccountService } from 'src/app/services/account.service';
+import { Component, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { AccountService } from '../../services/account.service';
 
 @Component({
   selector: 'app-login',
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './login.component.html',
-  styleUrls: ['./login.component.css']
+  styleUrl: './login.component.css'
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent {
+  private readonly accountService = inject(AccountService);
+  private readonly router = inject(Router);
 
-  loginForm: FormGroup;
+  readonly saving = signal(false);
 
-  constructor(
-    private accountService: AccountService,
-    private router: Router,
-    private formBuilder: FormBuilder
-  ) { 
+  readonly loginForm = inject(FormBuilder).nonNullable.group({
+    username: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(20)]],
+    password: ['', [Validators.required, Validators.minLength(10), Validators.maxLength(50)]]
+  });
 
+  constructor() {
     if (this.accountService.isLoggedIn()) {
       this.router.navigate(['/dashboard']);
     }
   }
 
-  ngOnInit(): void {
-    this.loginForm = this.formBuilder.group({
-      username: [null, [
-        Validators.required,
-        Validators.minLength(5),
-        Validators.maxLength(20)
-      ]],
-      password: [null, [
-        Validators.required,
-        Validators.minLength(10),
-        Validators.maxLength(50)
-      ]]
-    });
+  invalid(field: 'username' | 'password'): boolean {
+    const control = this.loginForm.controls[field];
+    return control.touched && control.invalid;
   }
 
-  isTouched(field: string){
-    return this.loginForm.get(field).touched;
+  valid(field: 'username' | 'password'): boolean {
+    const control = this.loginForm.controls[field];
+    return control.touched && control.valid;
   }
 
-  hasErrors(field: string) {
-    return this.loginForm.get(field).errors;
+  hasError(field: 'username' | 'password', error: string): boolean {
+    return this.loginForm.controls[field].hasError(error);
   }
 
-  hasError(field: string, error: string) {
-    return !!this.loginForm.get(field).hasError(error);
-  }
+  onSubmit(): void {
+    if (this.loginForm.invalid) return;
 
-  onSubmit() {
-    let applicationUserLogin: ApplicationUserLogin = new ApplicationUserLogin(
-      this.loginForm.get("username").value,
-      this.loginForm.get("password").value
-    );
-
-    this.accountService.login(applicationUserLogin).subscribe(() => {
-      this.router.navigate(['/dashboard']);
+    this.saving.set(true);
+    this.accountService.login(this.loginForm.getRawValue()).subscribe({
+      next: () => this.router.navigate(['/dashboard']),
+      error: () => this.saving.set(false)
     });
   }
 }

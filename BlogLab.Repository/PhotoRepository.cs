@@ -1,104 +1,67 @@
-﻿using BlogLab.Models.Photo;
+using BlogLab.Models.Photo;
 using Dapper;
-using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Npgsql;
 
 namespace BlogLab.Repository
 {
     public class PhotoRepository : IPhotoRepository
     {
-        private readonly IConfiguration _config;
+        private const string PhotoColumns =
+            "photo_id, application_user_id, public_id, image_url, description, publish_date, update_date";
 
-        public PhotoRepository(IConfiguration config)
+        private readonly NpgsqlDataSource _dataSource;
+
+        public PhotoRepository(NpgsqlDataSource dataSource)
         {
-            _config = config;
+            _dataSource = dataSource;
         }
 
         public async Task<int> DeletetAsync(int photoId)
         {
-            int affectedRows = 0;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
-
-                affectedRows = await connection.ExecuteAsync(
-                    "Photo_Delete",
-                    new { PhotoId = photoId },
-                    commandType: CommandType.StoredProcedure);
-            }
-
-            return affectedRows;
+            return await connection.ExecuteAsync(
+                "DELETE FROM photo WHERE photo_id = @PhotoId",
+                new { PhotoId = photoId });
         }
 
         public async Task<List<Photo>> GetAllByUserIdAsync(int applicationUserId)
         {
-            IEnumerable<Photo> photos;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
-
-                photos = await connection.QueryAsync<Photo>(
-                    "Photo_GetByUserId",
-                    new { ApplicationUserId = applicationUserId },
-                    commandType: CommandType.StoredProcedure);
-            }
+            var photos = await connection.QueryAsync<Photo>(
+                $"SELECT {PhotoColumns} FROM photo WHERE application_user_id = @ApplicationUserId ORDER BY photo_id DESC",
+                new { ApplicationUserId = applicationUserId });
 
             return photos.ToList();
-
         }
 
         public async Task<Photo> GetAsync(int photoId)
         {
-            Photo photo;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
-
-                photo = await connection.QueryFirstOrDefaultAsync<Photo>(
-                    "Photo_Get",
-                    new { PhotoId = photoId},
-                    commandType: CommandType.StoredProcedure);
-            }
-
-            return photo;
+            return await connection.QueryFirstOrDefaultAsync<Photo>(
+                $"SELECT {PhotoColumns} FROM photo WHERE photo_id = @PhotoId",
+                new { PhotoId = photoId });
         }
 
         public async Task<Photo> InsertAsync(PhotoCreate photoCreate, int applicationUserId)
         {
-            var dataTable = new DataTable();
-            dataTable.Columns.Add("PublicId", typeof(string));
-            dataTable.Columns.Add("ImageUrl", typeof(string));
-            dataTable.Columns.Add("Description", typeof(string));
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            dataTable.Rows.Add(photoCreate.PublicId, photoCreate.ImageUrl, photoCreate.Description);
+            var photoId = await connection.ExecuteScalarAsync<int>(
+                @"INSERT INTO photo (application_user_id, public_id, image_url, description)
+                  VALUES (@ApplicationUserId, @PublicId, @ImageUrl, @Description)
+                  RETURNING photo_id",
+                new
+                {
+                    ApplicationUserId = applicationUserId,
+                    photoCreate.PublicId,
+                    photoCreate.ImageUrl,
+                    photoCreate.Description
+                });
 
-            int newPhotoId;
-
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
-
-                newPhotoId = await connection.ExecuteScalarAsync<int>(
-                    "Photo_Insert",
-                    new { 
-                        Photo = dataTable.AsTableValuedParameter("dbo.PhotoType"),
-                        ApplicationUserId = applicationUserId
-                    },
-                    commandType: CommandType.StoredProcedure);
-            }
-
-            Photo photo = await GetAsync(newPhotoId);
-
-            return photo;
+            return await GetAsync(photoId);
         }
     }
 }

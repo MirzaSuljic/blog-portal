@@ -35,7 +35,7 @@ namespace BlogLab.Services
                 _issuer,
                 _issuer,
                 claims,
-                expires: DateTime.Now.AddMinutes(30),
+                expires: DateTime.UtcNow.AddMinutes(30),
                 signingCredentials: creds
                 );
 

@@ -1,11 +1,31 @@
-<div *ngIf="accountService.isLoggedIn() && !!standAloneComment">
+<section class="mt-16 border-t border-line pt-10" aria-labelledby="comments-title">
+  <h2 id="comments-title" class="font-display text-2xl font-semibold">
+    Discussion <span class="text-muted">({{ total() }})</span>
+  </h2>
 
-    <div class="mb-3">
-        <app-comment-box
-            [comment]="standAloneComment"
-            (commentSaved)="onCommentSaved($event)"></app-comment-box>
+  @if (accountService.user(); as user) {
+    @if (standAloneComment(); as comment) {
+      <div class="mt-6 flex gap-4">
+        <span class="avatar size-10 text-xs">{{ user.username | initials }}</span>
+        <div class="flex-1">
+          <app-comment-box [comment]="comment" (commentSaved)="onCommentSaved($event)" />
+        </div>
+      </div>
+    }
+  } @else {
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-accent-soft/60 p-5">
+      <p class="text-sm text-accent-dark">Log in to join the discussion.</p>
+      <a routerLink="/login" class="btn btn-primary btn-sm">Log in</a>
     </div>
+  }
 
-</div>
-
-<app-comments [comments]="blogCommentViewModels" *ngIf="!!blogCommentViewModels"></app-comments>
+  @if (commentTree(); as tree) {
+    @if (tree.length > 0) {
+      <div class="mt-8">
+        <app-comments [comments]="tree" />
+      </div>
+    } @else {
+      <p class="mt-8 text-muted">No comments yet. Start the conversation.</p>
+    }
+  }
+</section>

@@ -1,71 +1,70 @@
-<div class="container">
-
-    <div class="d-flex justify-content-center">
-        <h1 class="display-4 mt-5">Dashboard</h1>
+<section class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="eyebrow">Dashboard</p>
+      <h1 class="page-title mt-2">Your blogs</h1>
+      <p class="mt-2 text-muted">Hi {{ username() }}, here is everything you have published.</p>
     </div>
+    <a [routerLink]="['/dashboard', -1]" class="btn btn-accent"><app-icon name="plus" [size]="16" /> New blog</a>
+  </div>
 
-    <ng-template #noblogs>
+  <div class="mt-8 grid gap-4 sm:grid-cols-3">
+    <div class="card p-5">
+      <p class="text-sm text-muted">Published</p>
+      <p class="mt-1 font-display text-3xl font-semibold">{{ userBlogs().length }}</p>
+    </div>
+    <div class="card p-5">
+      <p class="text-sm text-muted">With a cover photo</p>
+      <p class="mt-1 font-display text-3xl font-semibold">{{ withPhoto() }}</p>
+    </div>
+    <a routerLink="/photo-album" class="card group flex items-center justify-between p-5 transition hover:border-ink/30">
+      <div>
+        <p class="text-sm text-muted">Photo album</p>
+        <p class="mt-1 font-semibold">Manage photos</p>
+      </div>
+      <span class="text-muted transition group-hover:translate-x-1 group-hover:text-accent"><app-icon name="arrow" /></span>
+    </a>
+  </div>
 
-        <div class="d-flex justify-content-center">
-            <h3 class="text-dark mt-3">You don't have any blogs yet...</h3>
-        </div>
+  @if (userBlogs().length > 0) {
+    <ul class="card mt-8 divide-y divide-line overflow-hidden">
+      @for (blog of userBlogs(); track blog.blogId) {
+        <li class="flex flex-col gap-4 p-5 transition hover:bg-paper/60 sm:flex-row sm:items-center sm:p-6">
+          <div class="min-w-0 flex-1">
+            <a [routerLink]="['/blogs', blog.blogId]" class="font-display text-lg font-semibold hover:text-accent">
+              {{ blog.title }}
+            </a>
+            <p class="mt-1 truncate text-sm text-muted">{{ blog.content | summary: 140 }}</p>
+            <p class="mt-2 text-xs text-muted">
+              Published {{ blog.publishDate | date: 'MMM d, y' }}
+              @if (blog.photoId) { · <span class="text-accent">has cover</span> }
+            </p>
+          </div>
 
-        <button class="btn btn-lg btn-outline-primary mt-4 mb-4" (click)="createBlog()">
-            New Blog
-        </button>
-
-    </ng-template>
-
-    <ng-template [ngIf]="userBlogs.length > 0" [ngIfElse]="noblogs">
-        
-        <button class="btn btn-lg btn-outline-primary mt-4 mb-4" (click)="createBlog()">
-            New Blog
-        </button>
-
-        <table class="table table-hover table-striped">
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Snippet</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr *ngFor="let userBlog of userBlogs">
-                    <td>
-                        {{ userBlog.title | summary:30 }}
-                    </td>
-                    <td>
-                        {{ userBlog.content | summary:90 }}
-                    </td>
-                    <td>
-                        <button class="btn btn-info d-inline mr-1" (click)="editBlog(userBlog.blogId)">
-                            Edit
-                        </button>
-
-                        <button 
-                            *ngIf="!userBlog.deleteConfirm"
-                            class="btn btn-danger d-inline" (click)="confirmDelete(userBlog)">
-                            Delete
-                        </button>
-
-                        <div *ngIf="!!userBlog.deleteConfirm">
-                            Sure?
-                            
-                            <button class="btn btn-link p-1" (click)="deleteConfirmed(userBlog, userBlogs)">
-                                Yes
-                            </button>
-
-                            <button class="btn btn-link p-1" (click)="cancelDeleteConfirm(userBlog)">
-                                No
-                            </button>
-
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-
-    </ng-template>
-
-</div>
+          <div class="flex shrink-0 items-center gap-2">
+            @if (blog.deleteConfirm) {
+              <span class="text-sm font-medium">Delete this blog?</span>
+              <button type="button" class="btn btn-danger btn-sm" (click)="deleteConfirmed(blog)">Yes, delete</button>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="setDeleteConfirm(blog, false)">Cancel</button>
+            } @else {
+              <a [routerLink]="['/dashboard', blog.blogId]" class="btn btn-outline btn-sm">
+                <app-icon name="pen" [size]="14" /> Edit
+              </a>
+              <button type="button" class="btn btn-danger-ghost btn-sm" (click)="setDeleteConfirm(blog, true)"
+                      [attr.aria-label]="'Delete ' + blog.title">
+                <app-icon name="trash" [size]="14" /> Delete
+              </button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  } @else if (loaded()) {
+    <div class="card mt-8 flex flex-col items-center px-6 py-16 text-center">
+      <span class="grid size-14 place-items-center rounded-full bg-accent-soft text-accent"><app-icon name="pen" [size]="24" /></span>
+      <p class="mt-4 font-display text-2xl font-semibold">You don't have any blogs yet</p>
+      <p class="mt-2 text-muted">Your first story is one click away.</p>
+      <a [routerLink]="['/dashboard', -1]" class="btn btn-accent mt-6">Write your first blog</a>
+    </div>
+  }
+</section>

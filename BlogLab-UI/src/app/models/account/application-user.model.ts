@@ -1,11 +1,7 @@
-export class ApplicationUser {
-
-    constructor(
-        public applicationUserId: number,
-        public username: string,
-        public fullname: string,
-        public email: string,
-        public token: string
-    ) {}
-
+export interface ApplicationUser {
+  applicationUserId: number;
+  username: string;
+  fullname: string;
+  email: string;
+  token: string;
 }

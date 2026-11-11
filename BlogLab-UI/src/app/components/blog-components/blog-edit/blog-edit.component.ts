@@ -1,130 +1,120 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import { TypeaheadMatch } from 'ngx-bootstrap/typeahead';
-import { ToastrService } from 'ngx-toastr';
-import { BlogCreate } from 'src/app/models/blog/blog-create.model';
-import { Blog } from 'src/app/models/blog/blog.model';
-import { Photo } from 'src/app/models/photo/photo.model';
-import { BlogService } from 'src/app/services/blog.service';
-import { PhotoService } from 'src/app/services/photo.service';
+import { Component, OnInit, inject, input, numberAttribute, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
+import { Blog } from '../../../models/blog/blog.model';
+import { Photo } from '../../../models/photo/photo.model';
+import { BlogService } from '../../../services/blog.service';
+import { PhotoService } from '../../../services/photo.service';
+import { IconComponent } from '../../../shared/icon.component';
+import { ToastService } from '../../../shared/toast.service';
+
+type Field = 'title' | 'content';
 
 @Component({
   selector: 'app-blog-edit',
+  imports: [ReactiveFormsModule, RouterLink, IconComponent],
   templateUrl: './blog-edit.component.html',
-  styleUrls: ['./blog-edit.component.css']
+  styleUrl: './blog-edit.component.css'
 })
 export class BlogEditComponent implements OnInit {
+  private readonly blogService = inject(BlogService);
+  private readonly photoService = inject(PhotoService);
+  private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
 
-  blogForm: FormGroup;
-  confirmImageDelete: boolean = false;
-  userPhotos: Photo[] = [];
+  /** Route parameter :id, -1 means a new blog. */
+  readonly id = input.required({ transform: numberAttribute });
 
-  constructor(
-    private route: ActivatedRoute,
-    private formBuilder: FormBuilder,
-    private blogService: BlogService,
-    private photoService: PhotoService,
-    private toastr: ToastrService,
-  ) { }
+  readonly userPhotos = signal<Photo[]>([]);
+  readonly blogId = signal(-1);
+  readonly saving = signal(false);
+
+  readonly blogForm = inject(FormBuilder).group({
+    title: ['', [Validators.required, Validators.minLength(10), Validators.maxLength(50)]],
+    content: ['', [Validators.required, Validators.minLength(300), Validators.maxLength(5000)]],
+    photoId: [null as number | null]
+  });
 
   ngOnInit(): void {
+    this.blogId.set(Number.isNaN(this.id()) ? -1 : this.id());
 
-    const blogId = parseInt(this.route.snapshot.paramMap.get('id'));
+    this.photoService.getByApplicationUserId().subscribe(photos => this.userPhotos.set(photos));
 
-    this.blogForm = this.formBuilder.group({
-      blogId: [blogId],
-      title: ['', [
-        Validators.required,
-        Validators.minLength(10),
-        Validators.maxLength(50)
-      ]],
-      content : ['', [
-        Validators.required,
-        Validators.minLength(300),
-        Validators.maxLength(5000),
-      ]],
-      photoDescription: [null],
-      photoId: [null]
-    });
-
-    this.photoService.getByApplicationUserId().subscribe(userPhotos => {
-      this.userPhotos = userPhotos;
-    });
-
-    if (!!blogId && blogId !== -1) {
-      this.blogService.get(blogId).subscribe(blog => {
-        this.updateForm(blog);
+    if (!this.isNew()) {
+      this.blogService.get(this.blogId()).subscribe(blog => {
+        if (blog) {
+          this.updateForm(blog);
+        } else {
+          this.router.navigate(['/not-found']);
+        }
       });
     }
   }
 
-  getPhoto(photoId: number) {
-    for (let i=0; i<this.userPhotos.length; i++) {
-      if (this.userPhotos[i].photoId === photoId) {
-        return this.userPhotos[i];
-      } 
+  isNew(): boolean {
+    return this.blogId() === -1;
+  }
+
+  invalid(field: Field): boolean {
+    const control = this.blogForm.controls[field];
+    return control.touched && control.invalid;
+  }
+
+  valid(field: Field): boolean {
+    const control = this.blogForm.controls[field];
+    return control.touched && control.valid;
+  }
+
+  hasError(field: Field, error: string): boolean {
+    return this.blogForm.controls[field].hasError(error);
+  }
+
+  selectedPhoto(): Photo | undefined {
+    const photoId = this.blogForm.controls.photoId.value;
+    return this.userPhotos().find(p => p.photoId === photoId);
+  }
+
+  selectPhoto(photoId: number | null): void {
+    this.blogForm.patchValue({ photoId });
+    this.blogForm.markAsDirty();
+  }
+
+  detachPhoto(): void {
+    this.blogForm.patchValue({ photoId: null });
+    this.blogForm.markAsDirty();
+  }
+
+  onSubmit(): void {
+    if (this.blogForm.invalid) {
+      this.blogForm.markAllAsTouched();
+      return;
     }
 
-    return null;
+    const { title, content, photoId } = this.blogForm.getRawValue();
+    this.saving.set(true);
+
+    this.blogService
+      .create({ blogId: this.blogId(), title: title ?? '', content: content ?? '', photoId })
+      .subscribe({
+        next: saved => {
+          const wasNew = this.isNew();
+          this.updateForm(saved);
+          this.saving.set(false);
+          this.toast.success('Blog saved.');
+          if (wasNew) {
+            this.router.navigate(['/dashboard', saved.blogId], { replaceUrl: true });
+          }
+        },
+        error: () => this.saving.set(false)
+      });
   }
 
-  isTouched(field: string) {
-    return this.blogForm.get(field).touched;
-  }
-
-  hasErrors(field: string) {
-    return this.blogForm.get(field).errors;
-  }
-
-  hasError(field: string, error: string) {
-    return !!this.blogForm.get(field).hasError(error);
-  }
-
-  isNew() {
-    return parseInt(this.blogForm.get('blogId').value) === -1;
-  }
-
-  detachPhoto() {
-    this.blogForm.patchValue({
-      photoId: null,
-      photoDescription: null
-    });
-  }
-
-  updateForm(blog: Blog) {
-    let photoDescription = this.getPhoto(blog.photoId)?.description;
-
-    this.blogForm.patchValue({
-      blogId: blog.blogId,
+  private updateForm(blog: Blog): void {
+    this.blogId.set(blog.blogId);
+    this.blogForm.reset({
       title: blog.title,
       content: blog.content,
-      photoId: blog.photoId,
-      photoDescription: photoDescription
+      photoId: blog.photoId ?? null
     });
-  }
-
-  onSelect(event: TypeaheadMatch): void {
-    let chosenPhoto: Photo = event.item;
-
-    this.blogForm.patchValue({
-      photoId: chosenPhoto.photoId,
-      photoDescription: chosenPhoto.description
-    });
-  }
-
-  onSubmit() {
-
-    let blogCreate: BlogCreate = new BlogCreate(
-      this.blogForm.get("blogId").value,
-      this.blogForm.get("title").value,
-      this.blogForm.get("content").value,
-      this.blogForm.get("photoId").value
-    );
-
-    this.blogService.create(blogCreate).subscribe(createdBlog => {
-      this.updateForm(createdBlog);
-      this.toastr.info("Blog saved.");
-    })
   }
 }

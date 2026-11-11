@@ -1,48 +1,53 @@
-import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from '@angular/core';
-import { NgForm } from '@angular/forms';
-import { ToastrService } from 'ngx-toastr';
-import { BlogCommentCreate } from 'src/app/models/blog-comment/blog-comment-create.model';
-import { BlogCommentViewModel } from 'src/app/models/blog-comment/blog-comment-view-model.model';
-import { BlogComment } from 'src/app/models/blog-comment/blog-comment.model';
-import { BlogCommentService } from 'src/app/services/blog-comment.service';
+import { Component, OnInit, inject, input, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { BlogCommentViewModel } from '../../../models/blog-comment/blog-comment-view-model.model';
+import { BlogComment } from '../../../models/blog-comment/blog-comment.model';
+import { BlogCommentService } from '../../../services/blog-comment.service';
+import { ToastService } from '../../../shared/toast.service';
 
 @Component({
   selector: 'app-comment-box',
+  imports: [FormsModule],
   templateUrl: './comment-box.component.html',
-  styleUrls: ['./comment-box.component.css']
+  styleUrl: './comment-box.component.css'
 })
 export class CommentBoxComponent implements OnInit {
+  private readonly blogCommentService = inject(BlogCommentService);
+  private readonly toast = inject(ToastService);
 
-  @Input() comment: BlogCommentViewModel;
-  @Output() commentSaved = new EventEmitter<BlogComment>();
+  readonly comment = input.required<BlogCommentViewModel>();
+  /** Show a Cancel button (used when editing or replying). */
+  readonly cancellable = input(false);
 
-  @ViewChild('commentForm') commentForm: NgForm;
+  readonly commentSaved = output<BlogComment>();
+  readonly cancelled = output<void>();
 
-  constructor(
-    private blogCommentService: BlogCommentService,
-    private toastr: ToastrService
-  ) { }
+  readonly saving = signal(false);
+  text = '';
 
   ngOnInit(): void {
+    this.text = this.comment().content ?? '';
   }
 
-  resetComment() {
-    this.commentForm.reset();
-  }
+  onSubmit(): void {
+    const comment = this.comment();
+    this.saving.set(true);
 
-  onSubmit() {
-
-    let blogCommentCreate: BlogCommentCreate = {
-      blogCommentId: this.comment.blogCommentId,
-      parentBlogCommentId: this.comment.parentBlogCommentId,
-      blogId: this.comment.blogId,
-      content: this.comment.content
-    };
-
-    this.blogCommentService.create(blogCommentCreate).subscribe(blogComment => {
-      this.toastr.info("Comment saved.");
-      this.resetComment();
-      this.commentSaved.emit(blogComment);
-    })
+    this.blogCommentService
+      .create({
+        blogCommentId: comment.blogCommentId,
+        parentBlogCommentId: comment.parentBlogCommentId,
+        blogId: comment.blogId,
+        content: this.text.trim()
+      })
+      .subscribe({
+        next: saved => {
+          this.saving.set(false);
+          this.toast.success('Comment saved.');
+          this.text = '';
+          this.commentSaved.emit(saved);
+        },
+        error: () => this.saving.set(false)
+      });
   }
 }

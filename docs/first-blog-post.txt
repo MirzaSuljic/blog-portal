@@ -1,0 +1,16 @@
+BlogLab started a few years ago as a learning project: an ASP.NET Core 3.1 Web API, an Angular 11 frontend, SQL Server with stored procedures and Cloudinary for photos. It worked, but every part of it had reached end of life. So I gave it a proper upgrade instead of letting it rot on GitHub.
+
+The backend: .NET 10
+All five projects moved from netcoreapp3.1 to net10.0. The first surprise came from JWT: newer versions of the token handler rename claims, so "nameid" silently became a long URL and every protected endpoint failed. One line, MapInboundClaims = false, fixed it. Secrets were the second lesson. The JWT key and the Cloudinary API secret were sitting in appsettings.json on GitHub, so they moved to a git-ignored appsettings.Local.json, and the exposed keys have to be rotated. CORS also blocked everything in production, because UseCors() was called without a policy.
+
+The database: from SQL Server to Neon
+I did not want to install SQL Server just to run a side project, so the data moved to a serverless PostgreSQL database on Neon. That meant rewriting the data layer: PostgreSQL has no table-valued parameters and no MERGE in the way the old stored procedures used it. The repositories now use Dapper with plain SQL and RETURNING clauses, a recursive CTE deletes a comment together with all of its replies, and the API creates its own tables on the first start. Neon shows its connection string as a postgresql:// URL, so a tiny helper converts it to the format Npgsql expects.
+
+The frontend: Angular 22
+The UI was rewritten with standalone components, signals and the new @if / @for control flow. ngx-bootstrap and ngx-toastr did not support the new Angular version, so pagination, toasts, the photo carousel and the dropdown menu became small components of their own. Functional interceptors replaced the class-based ones, and a few old bugs disappeared along the way: deleting an item that was not found in the list used to remove the first item instead.
+
+The new face: Tailwind
+Finally, Bootstrap 4 was replaced by Tailwind 4: a warm paper background, serif headlines, initials avatars, reading time on every card and a photo picker instead of a dropdown when you choose a cover.
+
+What I learned
+Upgrading an old project teaches more than starting a new one. You find every shortcut you took years ago, from secrets in config files to missing null checks. And the best part is the result: the same app, but fast, safe and pleasant to use again.

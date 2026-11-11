@@ -1,10 +1,6 @@
-export class ApplicationUserCreate {
-
-    constructor(
-        public username: string,
-        public password: string,
-        public email: string,
-        public fullname?: string
-    ) {}
-
+export interface ApplicationUserCreate {
+  username: string;
+  password: string;
+  email: string;
+  fullname?: string | null;
 }

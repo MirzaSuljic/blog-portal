@@ -1,54 +1,50 @@
-<header id="home-section" class="mb-4">
-    <div class="dark-overlay">
-        <div class="home-inner container">
-            <div class="row">
-                <div class="col-lg-8 d-none d-lg-block mt-5">
-                    
-                    <h1 class="display-4 text-light">
-                        Start writing your <strong>first blog</strong> and <strong> publish today</strong>
-                    </h1>
+<section class="relative isolate overflow-hidden bg-ink">
+  <img src="/assets/blog-image7.jpg" alt="" class="absolute inset-0 -z-10 size-full object-cover opacity-35">
+  <div class="absolute inset-0 -z-10 bg-linear-to-br from-ink via-ink/85 to-accent-dark/60"></div>
 
-                    <div class="d-flex">
-                        <div class="p-4 align-self-start">
-                            <i class="fas fa-check fa-2x text-light"></i>
-                        </div>
-                        <div class="p-4 align-self-end text-light">
-                            Simple registration will only take a few seconds to complete and login right away
-                        </div>
-                    </div>
+  <div class="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.15fr_1fr] lg:py-24">
+    <div class="text-paper">
+      <p class="eyebrow !text-orange-300">A home for your words</p>
+      <h1 class="mt-4 font-display text-5xl leading-[1.05] font-semibold tracking-tight sm:text-6xl">
+        Start writing your first blog. <em class="text-orange-300">Publish today.</em>
+      </h1>
+      <p class="mt-6 max-w-xl text-lg text-stone-300">
+        BlogLab is a calm place to write long-form posts, add a photo and get honest feedback from other writers.
+      </p>
 
-                    <div class="d-flex">
-                        <div class="p-4 align-self-start">
-                            <i class="fas fa-check fa-2x text-light"></i>
-                        </div>
-                        <div class="p-4 align-self-end text-light">
-                            Start interacting with other authors and build connections as you publish more blogs
-                        </div>
-                    </div>
-
-                    <div class="d-flex">
-                        <div class="p-4 align-self-start">
-                            <i class="fas fa-check fa-2x text-light"></i>
-                        </div>
-                        <div class="p-4 align-self-end text-light">
-                            Get featured in our most discussed blogs section when your blog gets lot of attention
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-lg-4 mt-5">
-                    <div class="card bg-muted text-center card-form">
-                        <div class="card-body">
-
-                            <app-register></app-register>
-
-                        </div>
-                    </div>
-                </div>
-
+      <ul class="mt-10 grid gap-5 sm:grid-cols-3 lg:grid-cols-1">
+        @for (point of points; track point.title) {
+          <li class="flex gap-4">
+            <span class="grid size-9 shrink-0 place-items-center rounded-full bg-white/10 text-orange-300 ring-1 ring-white/15">
+              <app-icon name="check" [size]="18" />
+            </span>
+            <div>
+              <p class="font-semibold">{{ point.title }}</p>
+              <p class="text-sm text-stone-400">{{ point.text }}</p>
             </div>
-        </div>
-    </div>
-</header>
+          </li>
+        }
+      </ul>
 
-<app-famous-blogs></app-famous-blogs>
+      <a routerLink="/blogs" class="btn mt-10 bg-white/10 text-paper ring-1 ring-white/20 hover:bg-white/20">
+        Read the latest blogs <app-icon name="arrow" [size]="16" />
+      </a>
+    </div>
+
+    <div id="join" class="card scroll-mt-24 p-6 shadow-2xl shadow-black/30 sm:p-8">
+      @if (accountService.user(); as user) {
+        <p class="eyebrow">Welcome back</p>
+        <h2 class="mt-2 font-display text-3xl font-semibold">Hi, {{ user.username }}</h2>
+        <p class="mt-2 text-muted">Pick up where you left off, or start something new.</p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a [routerLink]="['/dashboard', -1]" class="btn btn-accent"><app-icon name="pen" [size]="16" /> Write a blog</a>
+          <a routerLink="/dashboard" class="btn btn-outline">Go to dashboard</a>
+        </div>
+      } @else {
+        <app-register />
+      }
+    </div>
+  </div>
+</section>
+
+<app-famous-blogs />

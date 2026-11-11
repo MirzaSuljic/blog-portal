@@ -30,6 +30,8 @@ namespace BlogLab.Web.Controllers
 
             var createdBlogComment = await _blogCommentRepository.UpsertAsync(blogCommentCreate, applicationUserId);
 
+            if (createdBlogComment == null) return BadRequest("Comment does not exist or was not created by the current user.");
+
             return Ok(createdBlogComment);
         }
 

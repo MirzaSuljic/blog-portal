@@ -1,1 +1,59 @@
-/* You can add global styles to this file, and also import other style files */
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+
+  --color-paper: #faf7f2;
+  --color-ink: #1c1917;
+  --color-muted: #6b625a;
+  --color-line: #e7e0d6;
+  --color-accent: #c2410c;
+  --color-accent-dark: #9a3412;
+  --color-accent-soft: #fdebe1;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink;
+  }
+
+  ::selection {
+    @apply bg-accent-soft text-accent-dark;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition
+      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-sm { @apply px-3.5 py-1.5 text-xs; }
+  .btn-primary { @apply bg-ink text-paper hover:bg-accent; }
+  .btn-accent { @apply bg-accent text-white hover:bg-accent-dark; }
+  .btn-outline { @apply border border-line bg-white text-ink hover:border-ink; }
+  .btn-ghost { @apply text-muted hover:bg-ink/5 hover:text-ink; }
+  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+  .btn-danger-ghost { @apply text-red-600 hover:bg-red-50; }
+
+  .label { @apply mb-1.5 block text-sm font-semibold text-ink; }
+  .input {
+    @apply block w-full rounded-xl border border-line bg-white px-4 py-3 text-ink shadow-sm transition
+      placeholder:text-stone-400 focus:border-accent focus:ring-4 focus:ring-accent/15 focus:outline-none;
+  }
+  .input-invalid { @apply border-red-400 focus:border-red-500 focus:ring-red-500/15; }
+  .field-error { @apply mt-1.5 text-sm text-red-600; }
+  .hint { @apply mt-1.5 text-xs text-muted; }
+
+  .card { @apply rounded-3xl border border-line bg-white shadow-[0_1px_2px_rgba(28,25,23,0.04)]; }
+  .eyebrow { @apply text-xs font-bold tracking-[0.18em] text-accent uppercase; }
+  .page-title { @apply font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl; }
+  .avatar {
+    @apply inline-grid shrink-0 place-items-center rounded-full bg-accent-soft font-bold text-accent-dark;
+  }
+}

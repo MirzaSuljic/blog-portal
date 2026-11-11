@@ -1,85 +1,77 @@
-<div class="container">
+<section class="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <a routerLink="/dashboard" class="btn btn-ghost btn-sm -ml-3">← Dashboard</a>
+      <h1 class="page-title mt-3">{{ isNew() ? 'Write a new blog' : 'Edit blog' }}</h1>
+    </div>
+    @if (!isNew()) {
+      <a [routerLink]="['/blogs', blogId()]" class="btn btn-outline btn-sm">
+        <app-icon name="eye" [size]="16" /> Preview
+      </a>
+    }
+  </div>
 
-    <div class="d-flex justify-content-center">
-        <h1 class="display-4 mt-5">{{ isNew() ? 'Create' : 'Edit' }} Blog</h1>
+  <form [formGroup]="blogForm" (ngSubmit)="onSubmit()" class="card mt-8 space-y-8 p-6 sm:p-10" novalidate>
+
+    <!-- cover photo -->
+    <fieldset>
+      <legend class="label">Cover photo <span class="font-normal text-muted">(optional)</span></legend>
+
+      @if (userPhotos().length === 0) {
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-line bg-paper p-5">
+          <p class="text-sm text-muted">Upload photos to your album to use one as a cover.</p>
+          <a routerLink="/photo-album" class="btn btn-outline btn-sm"><app-icon name="upload" [size]="16" /> Open photo album</a>
+        </div>
+      } @else {
+        <div class="grid grid-cols-3 gap-3 sm:grid-cols-5">
+          <button type="button" (click)="selectPhoto(null)" [attr.aria-pressed]="!selectedPhoto()"
+                  class="grid aspect-square cursor-pointer place-items-center rounded-2xl border-2 border-dashed text-xs font-semibold transition"
+                  [class]="!selectedPhoto() ? 'border-accent bg-accent-soft text-accent-dark' : 'border-line text-muted hover:border-ink/30'">
+            No photo
+          </button>
+          @for (photo of userPhotos(); track photo.photoId) {
+            <button type="button" (click)="selectPhoto(photo.photoId)" [attr.aria-pressed]="selectedPhoto()?.photoId === photo.photoId"
+                    [title]="photo.description"
+                    class="relative aspect-square cursor-pointer overflow-hidden rounded-2xl ring-offset-2 transition"
+                    [class]="selectedPhoto()?.photoId === photo.photoId ? 'ring-4 ring-accent' : 'opacity-80 hover:opacity-100'">
+              <img [src]="photo.imageUrl" [alt]="photo.description" class="size-full object-cover">
+              @if (selectedPhoto()?.photoId === photo.photoId) {
+                <span class="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full bg-accent text-white">
+                  <app-icon name="check" [size]="14" />
+                </span>
+              }
+            </button>
+          }
+        </div>
+      }
+    </fieldset>
+
+    <div>
+      <label for="title" class="label">Title</label>
+      <input id="title" type="text" formControlName="title" placeholder="Write a catchy title"
+             class="input !py-4 font-display !text-2xl font-semibold" [class.input-invalid]="invalid('title')">
+      @if (invalid('title')) {
+        <p class="field-error">{{ hasError('title', 'required') ? 'Title is required' : 'Must be between 10-50 characters' }}</p>
+      }
     </div>
 
-    <a *ngIf="!isNew()" routerLink="/blogs/{{blogForm.get('blogId').value}}"
-        class="badge badge-primary mb-2 p-2">
-        Preview Blog
-    </a>
+    <div>
+      <div class="flex items-baseline justify-between">
+        <label for="content" class="label">Story</label>
+        <span class="text-xs text-muted">{{ blogForm.controls.content.value?.length ?? 0 }} / 5000</span>
+      </div>
+      <textarea id="content" formControlName="content" rows="18" placeholder="Tell your story… (at least 300 characters)"
+                class="input text-lg leading-8" [class.input-invalid]="invalid('content')"></textarea>
+      @if (invalid('content')) {
+        <p class="field-error">{{ hasError('content', 'required') ? 'Content is required' : 'Must be between 300-5000 characters' }}</p>
+      }
+    </div>
 
-    <form [formGroup]="blogForm" (ngSubmit)="onSubmit()">
-
-        <div class="form-group">
-            <label for="photo">Photo</label>
-
-            <input
-                formControlName="photoDescription"
-                [typeahead]="userPhotos"
-                typeaheadOptionField="description"
-                [typeaheadScrollable]="true"
-                [typeaheadOptionsInScrollableView]="5"
-                (typeaheadOnSelect)="onSelect($event)"
-                placeholder="Choose optional photo"
-                class="form-control form-control-lg"
-                id="photo">
-        </div>
-
-        <div class="form-group">
-
-            <label for="title">Title</label>
-
-            <input
-                type="text"
-                [ngClass]="{'is-invalid' : hasErrors('title') && isTouched('title'),
-                            'is-valid' : !hasErrors('title') && isTouched('title')}"
-                class="form-control form-control-lg"
-                formControlName="title"
-                placeholder="Write a catchy title"
-                id="title">
-
-            <div *ngIf="hasError('title', 'required')" class="invalid-feedback">
-                Title is required
-            </div>
-
-            <div *ngIf="hasError('title', 'minlength') || hasError('title', 'maxlength')" 
-                class="invalid-feedback">
-                Must be between 10-50 characters
-            </div>
-        </div>
-
-        <div class="form-group">
-
-            <label for="content">Content</label>
-
-            <textarea
-                [ngClass]="{'is-invalid' : hasErrors('content') && isTouched('content'),
-                            'is-valid' : !hasErrors('content') && isTouched('content')}"
-                class="form-control form-control-lg"
-                formControlName="content"
-                id="content"
-                rows="20"></textarea>
-
-            <div *ngIf="hasError('content', 'required')" class="invalid-feedback">
-                Content is required
-            </div>
-
-            <div *ngIf="hasError('content', 'minlength') || hasError('content', 'maxlength')" 
-                class="invalid-feedback">
-                Must be between 300-5000 characters
-            </div>
-        </div>
-
-        <button class="btn bg-primary text-light mr-2" [disabled]="!blogForm.valid && !!blogForm.pristine">
-            Save
-        </button>
-
-        <button class="btn btn-danger text-light" *ngIf="!!getPhoto(blogForm.get('photoId').value)"
-            (click)="detachPhoto()">
-            Detach Photo
-        </button>
-
-    </form>
-
-</div>
+    <div class="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-6">
+      <a routerLink="/dashboard" class="btn btn-ghost">Cancel</a>
+      <button type="submit" class="btn btn-accent" [disabled]="saving() || (blogForm.pristine && !isNew())">
+        {{ saving() ? 'Saving…' : isNew() ? 'Publish' : 'Save changes' }}
+      </button>
+    </div>
+  </form>
+</section>

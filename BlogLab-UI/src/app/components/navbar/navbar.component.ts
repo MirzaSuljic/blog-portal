@@ -1,27 +1,49 @@
-import { Component, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
-import { AccountService } from 'src/app/services/account.service';
+import { Component, HostListener, inject, signal } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { InitialsPipe } from '../../pipes/initials.pipe';
+import { AccountService } from '../../services/account.service';
+import { IconComponent } from '../../shared/icon.component';
 
 @Component({
   selector: 'app-navbar',
+  imports: [RouterLink, RouterLinkActive, InitialsPipe, IconComponent],
   templateUrl: './navbar.component.html',
-  styleUrls: ['./navbar.component.css']
+  styleUrl: './navbar.component.css'
 })
-export class NavbarComponent implements OnInit {
+export class NavbarComponent {
+  protected readonly accountService = inject(AccountService);
+  private readonly router = inject(Router);
 
-  isCollapsed = true;
+  readonly menuOpen = signal(false);
+  readonly userMenuOpen = signal(false);
 
-  constructor(
-    public accountService: AccountService,
-    private router: Router
-  ) { }
-
-  ngOnInit(): void {
+  toggleMenu(): void {
+    this.menuOpen.update(open => !open);
   }
 
-  logout() {
+  toggleUserMenu(event: Event): void {
+    event.stopPropagation();
+    this.userMenuOpen.update(open => !open);
+  }
+
+  closeMenus(): void {
+    this.menuOpen.set(false);
+    this.userMenuOpen.set(false);
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.userMenuOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.closeMenus();
+  }
+
+  logout(): void {
+    this.closeMenus();
     this.accountService.logout();
     this.router.navigate(['/']);
   }
-
 }

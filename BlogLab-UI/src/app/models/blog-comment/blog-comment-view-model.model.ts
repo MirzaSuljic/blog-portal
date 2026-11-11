@@ -1,17 +1,13 @@
-export class BlogCommentViewModel {
-
-    constructor(
-        public parentBlogCommentId: number,
-        public blogCommentId: number,
-        public blogId: number,
-        public content: string,
-        public username: string,
-        public publishDate: Date,
-        public updateDate: Date,
-        public isEditable: boolean = false,
-        public deleteConfirm: boolean = false,
-        public isReplying: boolean = false,
-        public comments: BlogCommentViewModel[]
-    ) {}
-
+export interface BlogCommentViewModel {
+  parentBlogCommentId: number | null;
+  blogCommentId: number;
+  blogId: number;
+  content: string;
+  username: string;
+  publishDate: string | null;
+  updateDate: string | null;
+  isEditable: boolean;
+  deleteConfirm: boolean;
+  isReplying: boolean;
+  comments: BlogCommentViewModel[];
 }

@@ -1,20 +1,22 @@
-<div class="container">
-    <div class="d-flex justify-content-center">
-        <h1 class="display-4">Most Discussed Blogs</h1>
+<section class="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="eyebrow">Trending</p>
+      <h2 class="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">Most discussed blogs</h2>
     </div>
-</div>
+    <a routerLink="/blogs" class="btn btn-outline">See all blogs</a>
+  </div>
 
-<ng-template [ngIf]="famousBlogs?.length > 0" [ngIfElse]="noblogs">
-    <div class="container card-columns mt-5">
-        <app-blog-card *ngFor="let famousBlog of famousBlogs"
-            [blog]="famousBlog"></app-blog-card>
+  @if (famousBlogs().length > 0) {
+    <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      @for (blog of famousBlogs(); track blog.blogId) {
+        <app-blog-card [blog]="blog" />
+      }
     </div>
-</ng-template>
-
-<ng-template #noblogs>
-    <div class="mt-4">
-        <div class="d-flex justify-content-center">
-            <h3 class="text-dark">There are no blogs being discussed...</h3>
-        </div>
+  } @else {
+    <div class="card mt-10 px-6 py-12 text-center">
+      <p class="font-display text-xl font-semibold">Nothing is being discussed yet</p>
+      <p class="mt-2 text-muted">Blogs with the most comments will show up here.</p>
     </div>
-</ng-template>
+  }
+</section>

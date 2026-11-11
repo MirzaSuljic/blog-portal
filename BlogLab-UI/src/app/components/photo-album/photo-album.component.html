@@ -1,97 +1,106 @@
-<div class="container">
+<section class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+  <header>
+    <p class="eyebrow">Your library</p>
+    <h1 class="page-title mt-2">Photo album</h1>
+    <p class="mt-2 text-muted">Photos you upload here can be used as blog covers.</p>
+  </header>
 
-    <div class="d-flex justify-content-center">
-        <h1 class="display-4 mt-5">Photo Album</h1>
-    </div>
+  <div class="mt-8 grid gap-8 lg:grid-cols-[1fr_22rem]">
 
-    <div class="mt-4" [ngClass]="{'photo-album-empty' : photos.length === 0}">
+    <!-- viewer -->
+    <div>
+      @if (photos()[current()]; as photo) {
+        <div class="card overflow-hidden">
+          <div class="relative bg-ink">
+            <img [src]="photo.imageUrl" [alt]="photo.description" class="aspect-[16/10] w-full object-contain">
 
-        <ng-template [ngIf]="photos.length > 0" [ngIfElse]="nophotos">
+            @if (photos().length > 1) {
+              <button type="button" (click)="prev()" aria-label="Previous photo"
+                      class="absolute top-1/2 left-3 grid size-10 -translate-y-1/2 cursor-pointer place-items-center rounded-full bg-white/85 text-ink shadow transition hover:bg-white">
+                <app-icon name="left" />
+              </button>
+              <button type="button" (click)="next()" aria-label="Next photo"
+                      class="absolute top-1/2 right-3 grid size-10 -translate-y-1/2 cursor-pointer place-items-center rounded-full bg-white/85 text-ink shadow transition hover:bg-white">
+                <app-icon name="right" />
+              </button>
+            }
+            <span class="absolute top-3 right-3 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white">
+              {{ current() + 1 }} / {{ photos().length }}
+            </span>
+          </div>
 
-            <carousel [pauseOnFocus]="true">
-                <slide *ngFor="let photo of photos">
-
-                    <div class="photo-container">
-                        <img src="{{photo.imageUrl}}" class="slide-image">
-                    </div>
-
-                    <div class="carousel-caption mb-3">
-                        <h3>{{photo.description}}</h3>
-
-                        <button class="btn btn-danger mt-3" *ngIf="!photo.deleteConfirm" 
-                            (click)="confirmDelete(photo)">Delete Photo</button>
-                        
-                        <div class="delete-confirmation pl-2 pr-2 mt-3" *ngIf="!!photo.deleteConfirm">
-                            <span class="text-dark">Sure?</span>
-
-                            <button class="btn btn-link p-1"
-                                (click)="deleteConfirmed(photo)">Yes</button>
-                            
-                            <button class="btn btn-link p-1"
-                                (click)="cancelDeleteConfirm(photo)">No</button>
-                        </div>
-
-                    </div>
-
-                </slide>
-            </carousel>
-
-        </ng-template>
-
-        <ng-template #nophotos>
-            <div class="d-flex justify-content-center">
-                <h3 class="text-dark">You don't have any photos yet...</h3>
-            </div>
-        </ng-template>
-
-    </div>
-
-    <form #photoForm="ngForm" (ngSubmit)="onSubmit()" class="mt-4">
-        <div class="row">
-            <div class="col-4">
-                <div class="form-group">
-                    <label for="photoDescription">Photo Description</label>
-                    <input
-                        type="text"
-                        name="photoDescription"
-                        #userPhotoDescription="ngModel"
-                        [(ngModel)]="newPhotoDescription"
-                        [ngClass]="{'is-invalid' : userPhotoDescription.errors && userPhotoDescription.touched}"
-                        class="form-control"
-                        placeholder="Photo Description"
-                        required
-                        minlength="10"
-                        maxlength="30"
-                        >
-
-                    <div *ngIf="!!userPhotoDescription.errors?.required" class="invalid-feedback">
-                        You can't have an empty photo description
-                    </div>
-
-                    <div *ngIf="!!userPhotoDescription.errors?.minlength" class="invalid-feedback">
-                        Must be between 10-30 characters
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-8">
-                <div class="form-group">
-                    <label for="file">Add photo to your album</label>
-                    <input 
-                        type="file"
-                        name="photoFile"
-                        #photoUploadElement
-                        (change)="onFileChange($event)" 
-                        class="form-control"
-                        required>
-                    <small class="form-text text-muted" id="fileHelp">Max 10mb size</small>
-                </div>
-
-                <button class="btn btn-primary" [disabled]="!photoFile || !photoForm.valid">
-                    Upload Image
-                </button>
-            </div>
+          <div class="flex flex-wrap items-center justify-between gap-3 p-5">
+            <p class="font-display text-lg font-semibold">{{ photo.description }}</p>
+            @if (deleteConfirm()) {
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium">Delete this photo?</span>
+                <button type="button" class="btn btn-danger btn-sm" (click)="deleteConfirmed(photo)">Yes, delete</button>
+                <button type="button" class="btn btn-ghost btn-sm" (click)="deleteConfirm.set(false)">Cancel</button>
+              </div>
+            } @else {
+              <button type="button" class="btn btn-danger-ghost btn-sm" (click)="deleteConfirm.set(true)">
+                <app-icon name="trash" [size]="14" /> Delete
+              </button>
+            }
+          </div>
         </div>
-    </form>
 
-</div>
+        @if (photos().length > 1) {
+          <div class="mt-4 flex gap-3 overflow-x-auto pb-2">
+            @for (p of photos(); track p.photoId; let i = $index) {
+              <button type="button" (click)="goTo(i)" [attr.aria-label]="'Show ' + p.description"
+                      [attr.aria-current]="i === current()"
+                      class="size-20 shrink-0 cursor-pointer overflow-hidden rounded-xl ring-offset-2 ring-offset-paper transition"
+                      [class]="i === current() ? 'ring-2 ring-accent' : 'opacity-60 hover:opacity-100'">
+                <img [src]="p.imageUrl" [alt]="p.description" class="size-full object-cover">
+              </button>
+            }
+          </div>
+        }
+      } @else {
+        <div class="card flex h-full min-h-80 flex-col items-center justify-center px-6 py-16 text-center">
+          <span class="grid size-14 place-items-center rounded-full bg-accent-soft text-accent"><app-icon name="photo" [size]="26" /></span>
+          <p class="mt-4 font-display text-2xl font-semibold">No photos yet</p>
+          <p class="mt-2 text-muted">Upload your first photo with the form.</p>
+        </div>
+      }
+    </div>
+
+    <!-- upload -->
+    <form #photoForm="ngForm" (ngSubmit)="onSubmit()" class="card h-fit space-y-5 p-6" novalidate>
+      <h2 class="font-display text-xl font-semibold">Upload a photo</h2>
+
+      <label for="file"
+             class="flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-line bg-paper text-center transition hover:border-accent/60">
+        @if (previewUrl) {
+          <img [src]="previewUrl" alt="Selected photo preview" class="aspect-[4/3] w-full object-cover">
+        } @else {
+          <span class="flex flex-col items-center px-4 py-10">
+            <span class="text-accent"><app-icon name="upload" [size]="28" /></span>
+            <span class="mt-2 text-sm font-semibold">Choose an image</span>
+            <span class="mt-1 text-xs text-muted">JPG or PNG, max 10 MB</span>
+          </span>
+        }
+        <input id="file" type="file" name="photoFile" #photoUploadElement accept="image/*"
+               (change)="onFileChange($event)" class="sr-only">
+      </label>
+
+      <div>
+        <label for="photoDescription" class="label">Description</label>
+        <input id="photoDescription" type="text" name="photoDescription" #description="ngModel"
+               [(ngModel)]="newPhotoDescription" class="input" placeholder="Sunset over the lake"
+               required minlength="10" maxlength="30"
+               [class.input-invalid]="description.invalid && description.touched">
+        @if (description.invalid && description.touched) {
+          <p class="field-error">{{ description.hasError('required') ? 'Description is required' : 'Must be between 10-30 characters' }}</p>
+        } @else {
+          <p class="hint">10-30 characters</p>
+        }
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full" [disabled]="!photoFile || photoForm.invalid || uploading()">
+        {{ uploading() ? 'Uploading…' : 'Upload photo' }}
+      </button>
+    </form>
+  </div>
+</section>

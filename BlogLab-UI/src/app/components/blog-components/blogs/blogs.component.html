@@ -1,37 +1,37 @@
-<div class="container">
-    <div class="d-flex justify-content-center">
-        <h1 class="display-4 mt-5">Blogs</h1>
+<section class="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+  <header class="max-w-2xl">
+    <p class="eyebrow">The journal</p>
+    <h1 class="page-title mt-2">All blogs</h1>
+    <p class="mt-3 text-lg text-muted">Fresh writing from the BlogLab community.</p>
+  </header>
+
+  @if (pagedBlogResult(); as result) {
+    @if (result.items.length > 0) {
+      <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        @for (blog of result.items; track blog.blogId) {
+          <app-blog-card [blog]="blog" />
+        }
+      </div>
+
+      <div class="mt-12 flex justify-center">
+        <app-pagination
+          [totalItems]="result.totalCount"
+          [itemsPerPage]="pageSize"
+          [page]="page()"
+          (pageChanged)="loadPage($event)" />
+      </div>
+    } @else {
+      <div class="card mt-10 flex flex-col items-center px-6 py-16 text-center">
+        <p class="font-display text-2xl font-semibold">No blogs published yet</p>
+        <p class="mt-2 text-muted">Be the first one to write something.</p>
+        <a [routerLink]="['/dashboard', -1]" class="btn btn-accent mt-6">Write the first blog</a>
+      </div>
+    }
+  } @else {
+    <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true">
+      @for (i of [1, 2, 3]; track i) {
+        <div class="card h-96 animate-pulse bg-white/60"></div>
+      }
     </div>
-</div>
-
-<ng-template [ngIf]="pagedBlogResult?.items?.length > 0" [ngIfElse]="noblogs">
-    <div class="container card-columns mt-5 blogs">
-        <app-blog-card *ngFor="let blog of pagedBlogResult.items" [blog]="blog"></app-blog-card>
-    </div>
-</ng-template>
-
-
-<ng-template #noblogs>
-    <div class="mt-4">
-        <div class="d-flex justify-content-center">
-            <h3 class="text-dark">There are no blogs published yet...</h3>
-        </div>
-    </div>
-</ng-template>
-
-<div class="container mt-5" *ngIf="pagedBlogResult?.totalCount > 0">
-    <div class="d-flex justify-content-center">
-       <pagination
-        [boundaryLinks]="true"
-        [maxSize]="10"
-        [itemsPerPage]="6"
-        previousText="&lsaquo;"
-        nextText="&rsaquo;"
-        firstText="&laquo;"
-        lastText="&raquo;"
-        [totalItems]="pagedBlogResult.totalCount"
-        (pageChanged)="pageChanged($event)"
-       ></pagination>
-    </div>
-</div>
-
+  }
+</section>

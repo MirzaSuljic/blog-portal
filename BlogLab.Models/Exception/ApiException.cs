@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace BlogLab.Models.Exception
 {
@@ -10,7 +10,7 @@ namespace BlogLab.Models.Exception
 
         public override string ToString()
         {
-            return JsonConvert.SerializeObject(this);
+            return JsonSerializer.Serialize(this, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         }
     }
 }

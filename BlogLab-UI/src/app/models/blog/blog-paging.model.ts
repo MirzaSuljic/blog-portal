@@ -1,8 +1,4 @@
-export class BlogPaging {
-
-    constructor(
-        public page: number,
-        public pageSize: number
-    ) {}
-
+export interface BlogPaging {
+  page: number;
+  pageSize: number;
 }

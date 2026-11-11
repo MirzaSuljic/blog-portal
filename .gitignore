@@ -1,0 +1,19 @@
+# .NET build output
+bin/
+obj/
+*.user
+.vs/
+
+# Local secrets (JWT key, Cloudinary keys)
+BlogLab.Web/appsettings.Local.json
+*.env
+
+# Angular (BlogLab-UI has its own .gitignore too)
+node_modules/
+dist/
+.angular/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/

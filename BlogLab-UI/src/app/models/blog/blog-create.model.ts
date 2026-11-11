@@ -1,10 +1,6 @@
-export class BlogCreate {
-
-    constructor(
-        public blogId: number,
-        public title: string,
-        public content: string,
-        public photoId?: number
-    ) {}
-
+export interface BlogCreate {
+  blogId: number;
+  title: string;
+  content: string;
+  photoId?: number | null;
 }

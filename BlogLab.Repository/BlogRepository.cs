@@ -1,145 +1,136 @@
-﻿using BlogLab.Models.Blog;
+using BlogLab.Models.Blog;
 using Dapper;
-using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Npgsql;
 
 namespace BlogLab.Repository
 {
     public class BlogRepository : IBlogRepository
     {
-        private readonly IConfiguration _config;
+        private const string BlogColumns =
+            "blog_id, application_user_id, username, title, content, photo_id, publish_date, update_date";
 
-        public BlogRepository(IConfiguration config)
+        private readonly NpgsqlDataSource _dataSource;
+
+        public BlogRepository(NpgsqlDataSource dataSource)
         {
-            _config = config;
+            _dataSource = dataSource;
         }
 
         public async Task<int> DeleteAsync(int blogId)
         {
-            int affectedRows = 0;
+            await using var connection = await _dataSource.OpenConnectionAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
+            await connection.ExecuteAsync(
+                "UPDATE blog_comment SET active_ind = FALSE, update_date = now() WHERE blog_id = @BlogId",
+                new { BlogId = blogId }, transaction);
 
-                affectedRows = await connection.ExecuteAsync(
-                    "Blog_Delete",
-                    new { BlogId = blogId },
-                    commandType: CommandType.StoredProcedure);
-            }
+            var affectedRows = await connection.ExecuteAsync(
+                "UPDATE blog SET photo_id = NULL, active_ind = FALSE, update_date = now() WHERE blog_id = @BlogId",
+                new { BlogId = blogId }, transaction);
 
+            await transaction.CommitAsync();
             return affectedRows;
         }
 
         public async Task<PagedResults<Blog>> GetAllAsync(BlogPaging blogPaging)
         {
-            var results = new PagedResults<Blog>();
+            var page = Math.Max(1, blogPaging.Page);
+            var pageSize = Math.Clamp(blogPaging.PageSize, 1, 50);
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
+            await using var connection = await _dataSource.OpenConnectionAsync();
+
+            using var multi = await connection.QueryMultipleAsync(
+                $@"SELECT {BlogColumns} FROM blog_view
+                   WHERE active_ind
+                   ORDER BY blog_id
+                   LIMIT @PageSize OFFSET @Offset;
+
+                   SELECT COUNT(*)::int FROM blog_view WHERE active_ind;",
+                new { Offset = (page - 1) * pageSize, PageSize = pageSize });
+
+            return new PagedResults<Blog>
             {
-                await connection.OpenAsync();
-
-                using (var multi = await connection.QueryMultipleAsync("Blog_GetAll",
-                    new { 
-                        Offset = (blogPaging.Page - 1) * blogPaging.PageSize,
-                        PageSize = blogPaging.PageSize
-                    }, 
-                    commandType: CommandType.StoredProcedure))
-                {
-                    results.Items = multi.Read<Blog>();
-
-                    results.TotalCount = multi.ReadFirst<int>();
-                }
-            }
-
-            return results;
+                Items = (await multi.ReadAsync<Blog>()).ToList(),
+                TotalCount = await multi.ReadFirstAsync<int>()
+            };
         }
 
         public async Task<List<Blog>> GetAllByUserIdAsync(int applicationUserId)
         {
-            IEnumerable<Blog> blogs;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
-
-                blogs = await connection.QueryAsync<Blog>(
-                    "Blog_GetByUserId",
-                    new { ApplicationUserId = applicationUserId },
-                    commandType: CommandType.StoredProcedure);
-            }
+            var blogs = await connection.QueryAsync<Blog>(
+                $@"SELECT {BlogColumns} FROM blog_view
+                   WHERE application_user_id = @ApplicationUserId AND active_ind
+                   ORDER BY blog_id",
+                new { ApplicationUserId = applicationUserId });
 
             return blogs.ToList();
         }
 
         public async Task<List<Blog>> GetAllFamousAsync()
         {
-            IEnumerable<Blog> famousBlogs;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
+            var blogs = await connection.QueryAsync<Blog>(
+                @"SELECT b.blog_id, b.application_user_id, b.username, b.title, b.content, b.photo_id,
+                         b.publish_date, b.update_date
+                  FROM blog_view b
+                  JOIN blog_comment c ON c.blog_id = b.blog_id AND c.active_ind
+                  WHERE b.active_ind
+                  GROUP BY b.blog_id, b.application_user_id, b.username, b.title, b.content, b.photo_id,
+                           b.publish_date, b.update_date
+                  ORDER BY COUNT(c.blog_comment_id) DESC
+                  LIMIT 6");
 
-                famousBlogs = await connection.QueryAsync<Blog>(
-                    "Blog_GetAllFamous",
-                    new { },
-                    commandType: CommandType.StoredProcedure);
-            }
-
-            return famousBlogs.ToList();
+            return blogs.ToList();
         }
 
         public async Task<Blog> GetAsync(int blogId)
         {
-            Blog blog;
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
-            {
-                await connection.OpenAsync();
-
-                blog = await connection.QueryFirstOrDefaultAsync<Blog>(
-                    "Blog_Get",
-                    new { BlogId = blogId },
-                    commandType: CommandType.StoredProcedure);
-            }
-
-            return blog;
+            return await connection.QueryFirstOrDefaultAsync<Blog>(
+                $"SELECT {BlogColumns} FROM blog_view WHERE blog_id = @BlogId AND active_ind",
+                new { BlogId = blogId });
         }
 
         public async Task<Blog> UpsertAsync(BlogCreate blogCreate, int applicationUserId)
         {
-            var dataTable = new DataTable();
-            dataTable.Columns.Add("BlogId", typeof(int));
-            dataTable.Columns.Add("Title", typeof(string));
-            dataTable.Columns.Add("Content", typeof(string));
-            dataTable.Columns.Add("PhotoId", typeof(int));
+            await using var connection = await _dataSource.OpenConnectionAsync();
 
-            dataTable.Rows.Add(blogCreate.BlogId, blogCreate.Title, blogCreate.Content, blogCreate.PhotoId);
-
-            int? newBlogId;
-
-            using (var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection")))
+            var parameters = new
             {
-                await connection.OpenAsync();
+                blogCreate.BlogId,
+                blogCreate.Title,
+                blogCreate.Content,
+                blogCreate.PhotoId,
+                ApplicationUserId = applicationUserId
+            };
 
-                newBlogId = await connection.ExecuteScalarAsync<int?>(
-                    "Blog_Upsert",
-                    new { Blog = dataTable.AsTableValuedParameter("dbo.BlogType"), ApplicationUserId = applicationUserId },
-                    commandType: CommandType.StoredProcedure
-                    );
+            int? blogId;
+
+            if (blogCreate.BlogId > 0)
+            {
+                // only the author can change an existing blog
+                blogId = await connection.ExecuteScalarAsync<int?>(
+                    @"UPDATE blog
+                      SET title = @Title, content = @Content, photo_id = @PhotoId, update_date = now()
+                      WHERE blog_id = @BlogId AND application_user_id = @ApplicationUserId AND active_ind
+                      RETURNING blog_id",
+                    parameters);
+            }
+            else
+            {
+                blogId = await connection.ExecuteScalarAsync<int>(
+                    @"INSERT INTO blog (application_user_id, title, content, photo_id)
+                      VALUES (@ApplicationUserId, @Title, @Content, @PhotoId)
+                      RETURNING blog_id",
+                    parameters);
             }
 
-            newBlogId = newBlogId ?? blogCreate.BlogId;
-
-            Blog blog = await GetAsync(newBlogId.Value);
-
-            return blog;
+            return blogId.HasValue ? await GetAsync(blogId.Value) : null;
         }
     }
 }
